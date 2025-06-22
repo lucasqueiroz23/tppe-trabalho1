@@ -1,26 +1,25 @@
-# src/ArvoreB.py
-
 import icontract
 from typing import Optional, List
 from .Pagina import Pagina
 
+
 @icontract.invariant(
     lambda self: self._leaves_same_level(),
-    "Todas as folhas estão no mesmo nível"
+    "Nem todas as folhas estão no mesmo nível da árvore"
 )
 @icontract.invariant(
     lambda self: all(
         node.registros == sorted(node.registros)
         for node in self._all_nodes() if not node.folha
     ),
-    "Invariante: nós internos com chaves em ordem crescente"
+    "Existe um nó interno com chaves fora de ordem crescente"
 )
 @icontract.invariant(
     lambda self: all(
         node.registros == sorted(node.registros)
         for node in self._all_nodes() if node.folha
     ),
-    "Invariante: folhas com valores em ordem crescente"
+    "Existe uma folha com valores fora de ordem crescente"
 )
 class ArvoreB:
     def __init__(self, m: int):
@@ -125,21 +124,21 @@ class ArvoreB:
 
     @icontract.require(
         lambda self, registro: self.pesquisa(registro) is None,
-        "Pré-condição: chave a ser inserida não existe na árvore"
+        "Chave já existe na árvore, não é permitido inserir duplicatas"
     )
     @icontract.ensure(
         lambda self: self._bounds_ok(),
-        "Pós-condição: chaves em cada nó dentro dos limites (raiz: 1..max; internos: min..max)"
+        "Após inserção, cada nó deve ter quantidade de chaves dentro dos limites definidos"
     )
     @icontract.ensure(
         lambda self: self._children_bounds_ok(),
-        "Pós-condição: número de filhos em cada nó dentro dos limites (raiz: 2..2*t; internos: t..2*t)"
+        "Após inserção, cada nó deve ter número de filhos dentro dos limites definidos"
     )
     @icontract.snapshot(lambda self: self._height(), name="old_height")
     @icontract.ensure(
-        lambda self, OLD: self.altura() == OLD.old_height or 
-                          self.altura() == OLD.old_height + 1,
-        "Para a raiz, após operação de divisão, nível da árvore aumenta em no máximo uma unidade"
+        lambda self, OLD: self._height() == OLD.old_height
+                        or self._height() == OLD.old_height + 1,
+        "Após divisão da raiz, a altura da árvore deve permanecer igual ou aumentar em no máximo uma unidade"
     )
     def insere(self, registro: int) -> None:
         if self.raiz is None:
@@ -220,21 +219,21 @@ class ArvoreB:
 
     @icontract.require(
         lambda self, registro: self.pesquisa(registro) is not None,
-        "Pré-condição: chave a ser removida existe na árvore"
+        "A chave a ser removida não existe na árvore"
     )
     @icontract.ensure(
         lambda self: self._bounds_ok(),
-        "Pós-condição: chaves em cada nó dentro dos limites (raiz: 1..max; internos: min..max)"
+        "Após remoção, cada nó deve ter quantidade de chaves dentro dos limites definidos"
     )
     @icontract.ensure(
         lambda self: self._children_bounds_ok(),
-        "Pós-condição: número de filhos em cada nó dentro dos limites (raiz: 2..2*t; internos: t..2*t)"
+        "Após remoção, cada nó deve ter número de filhos dentro dos limites definidos"
     )
     @icontract.snapshot(lambda self: self._height(), name="old_height")
     @icontract.ensure(
         lambda self, OLD: self._height() == OLD.old_height
-                         or self._height() == OLD.old_height - 1,
-        "Para a raiz, após operação de fusão, nível da árvore diminui em no máximo uma unidade"
+                        or self._height() == OLD.old_height - 1,
+        "Após fusão da raiz, a altura da árvore deve permanecer igual ou diminuir em no máximo uma unidade"
     )
     def retira(self, registro: int) -> None:
         # executa a remoção
