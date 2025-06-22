@@ -1,10 +1,7 @@
-UnB - Universidade de Brasilia
-
-FCTE - Faculdade de Ciência e Tecnologia em Engenharias
-
-FGA0242 - Técnicas de Programação para Plataformas Emergentes
-
-Prof. André Lanna
+UnB - Universidade de Brasilia<br>
+FCTE - Faculdade de Ciência e Tecnologia em Engenharias<br>
+FGA0242 - Técnicas de Programação para Plataformas Emergentes<br>
+Prof. André Lanna<br>
 
 # Trabalho prático 1
 
