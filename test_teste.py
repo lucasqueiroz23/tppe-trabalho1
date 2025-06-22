@@ -1,96 +1,138 @@
 # test_teste.py
 
 import pytest
+import icontract
 from src.ArvoreB import ArvoreB
 from src.Pagina import Pagina
+from typing import List, Optional
 
-def _in_order(node: Pagina):
-    """Percurso em ordem para coletar todas as chaves."""
-    if node is None:
-        return []
-    result = []
-    for i in range(node.qtdRegistros):
-        result += _in_order(node.paginas[i])
-        result.append(node.registros[i])
-    result += _in_order(node.paginas[node.qtdRegistros])
-    return result
 
-def test_invariante_folhas_mesmo_nivel():
-    tree = ArvoreB(3)
-    for x in [10, 20, 5, 6, 12, 30, 7, 17]:
-        tree.insere(x)
-    # todas as folhas devem estar no mesmo nível
-    assert tree._leaves_same_level()
+def make_page(t: int,
+              is_leaf: bool,
+              keys: List[int],
+              children: Optional[List[Pagina]] = None) -> Pagina:
+    page = Pagina(t, is_leaf)
+    page.registros    = list(keys)
+    page.qtdRegistros = len(keys)
+    if children is not None:
+        page.paginas = list(children)
+    return page
 
-def test_invariante_chaves_internas_ordenadas():
-    tree = ArvoreB(3)
-    for x in [15, 5, 1, 20, 25, 10]:
-        tree.insere(x)
-    # em cada nó interno, as chaves devem estar em ordem crescente
-    assert tree._internal_keys_ordered()
+def test_invariante_sucesso_em_arvore_balanceada():
+    tree = ArvoreB(m=2)
+    for chave in [10, 20, 5, 15, 25, 2, 8]:
+        tree.insere(chave)
+    # invariantes checadas em métodos públicos
+    assert tree.pesquisa(15) == 15
+    assert tree.pesquisa(99) is None
 
-def test_invariante_valores_folhas_ordenados():
-    tree = ArvoreB(3)
-    for x in [8, 3, 9, 1, 7, 5]:
-        tree.insere(x)
-    # em cada folha, os valores devem estar em ordem crescente
-    assert tree._leaf_values_ordered()
+def test_invariante_falha_quando_folhas_em_niveis_diferentes():
+    tree = ArvoreB(m=2)
 
-def test_insercao_duplicada_ignorada():
-    tree = ArvoreB(3)
-    tree.insere(42)
-    before = _in_order(tree.raiz).count(42)
-    tree.insere(42)
-    after = _in_order(tree.raiz).count(42)
-    # inserir duplicata não altera contegem
-    assert before == after
+    # monta raiz “quebrada”
+    tree.raiz = Pagina(t=2, folha=False)
+    tree.raiz.qtdRegistros = 1
+    tree.raiz.registros   = [50]
 
-def test_remocao_inexistente_sem_erro():
-    tree = ArvoreB(3)
-    # pesquisar inexistente retorna None
-    assert tree.pesquisa(999) is None
-    # remover inexistente não lança e continua None
-    tree.retira(999)
-    assert tree.pesquisa(999) is None
+    # filho imediato (nível 1)
+    left = Pagina(t=2, folha=True)
+    left.registros   = [10]
+    left.qtdRegistros = 1
+    tree.raiz.paginas[0] = left
 
-def test_remocao_duplicada_ignorada():
-    tree = ArvoreB(3)
-    tree.insere(5)
-    tree.retira(5)
-    # segunda remoção não deve lançar
-    tree.retira(5)
-    assert tree.pesquisa(5) is None
+    # outro ramo mais “profundo” (folha em nível 2)
+    mid = Pagina(t=2, folha=False)
+    mid.qtdRegistros = 0
+    deep_leaf = Pagina(t=2, folha=True)
+    deep_leaf.registros   = [60]
+    deep_leaf.qtdRegistros = 1
+    mid.paginas[0] = deep_leaf
+    tree.raiz.paginas[1] = mid
 
-def test_pos_condicao_aumento_nivel():
-    tree = ArvoreB(2)
-    h_before = tree._height()
-    # forçar split na raiz (árvore de grau 2 suporta até 3 chaves)
-    for x in [1, 2, 3, 4]:
-        tree.insere(x)
-    h_after = tree._height()
-    assert h_after == h_before + 1
+    # chama qualquer método público para disparar a invariante
+    with pytest.raises(icontract.ViolationError):
+        tree.pesquisa(60)
 
-def test_pos_condicao_diminuicao_nivel():
-    tree = ArvoreB(2)
-    for x in [1, 2, 3, 4]:
-        tree.insere(x)
-    h_mid = tree._height()
-    for x in [4, 3, 2, 1]:
-        tree.retira(x)
-    h_after = tree._height()
-    # após fusão de raízes vazias, altura cai ou volta a 1
-    assert h_after <= h_mid - 1 or h_after == 1
+def test_interna_desordenada_dispara_violacao():
+    tree = ArvoreB(m=2)
 
-def test_bounds_de_chaves():
-    tree = ArvoreB(3)
-    for x in range(1, 20):
-        tree.insere(x)
-    # cada nó deve respeitar número mínimo e máximo de chaves
-    assert tree._bounds_ok()
+    # Monta uma raiz interna COM REGISTROS FORA DE ORDEM:
+    tree.raiz = Pagina(t=2, folha=False)
+    tree.raiz.registros   = [30, 10]  # 30 > 10 → desordenado
+    tree.raiz.qtdRegistros = 2
 
-def test_bounds_de_filhos():
-    tree = ArvoreB(3)
-    for x in range(1, 20):
-        tree.insere(x)
-    # cada nó interno deve respeitar número mínimo e máximo de filhos
-    assert tree._children_bounds_ok()
+    # É preciso criar 3 filhos (qtdRegistros+1), mesmo vazios, para não ser folha:
+    tree.raiz.paginas[0] = Pagina(t=2, folha=True)
+    tree.raiz.paginas[1] = Pagina(t=2, folha=True)
+    tree.raiz.paginas[2] = Pagina(t=2, folha=True)
+
+    # Qualquer método público dispara a checagem de invariantes
+    with pytest.raises(icontract.ViolationError):
+        tree.pesquisa(10)
+
+
+def test_folha_desordenada_dispara_violacao():
+    tree = ArvoreB(m=2)
+
+    # Monta a raiz como FOLHA com valores fora de ordem:
+    tree.raiz = Pagina(t=2, folha=True)
+    tree.raiz.registros   = [5, 2, 8]  # 5 > 2 → desordenado
+    tree.raiz.qtdRegistros = 3
+
+    # Inserir qualquer coisa vai invocar o invariant checker
+    with pytest.raises(icontract.ViolationError):
+        tree.insere(9)
+
+
+def test_interna_em_ordem_nao_dispara():
+    tree = ArvoreB(m=2)
+
+    # Monta raiz interna COM REGISTROS EM ORDEM:
+    tree.raiz = Pagina(t=2, folha=False)
+    tree.raiz.registros   = [10, 20]
+    tree.raiz.qtdRegistros = 2
+
+    # 3 filhos vazios, mas ordenados em profundidade igual
+    tree.raiz.paginas[0] = Pagina(t=2, folha=True)
+    tree.raiz.paginas[1] = Pagina(t=2, folha=True)
+    tree.raiz.paginas[2] = Pagina(t=2, folha=True)
+
+    # Não deve lançar: retorna None pois 15 não está nos registros
+    assert tree.pesquisa(15) is None
+
+
+def test_folha_em_ordem_nao_dispara():
+    tree = ArvoreB(m=2)
+
+    # Monta a raiz como FOLHA com valores em ordem:
+    tree.raiz = Pagina(t=2, folha=True)
+    tree.raiz.registros   = [1, 2, 3]
+    tree.raiz.qtdRegistros = 3
+
+    # Inserir um novo valor corretamente mantém tudo em ordem
+    tree.insere(4)
+    assert tree.pesquisa(4) == 4
+    
+def test_insere_pre_falha_com_duplicata():
+    tree = ArvoreB(m=2)
+    tree.insere(10)
+    # agora 10 já está, então inserir de novo deve violar a precondição
+    with pytest.raises(icontract.ViolationError):
+        tree.insere(10)
+
+def test_retira_pre_falha_com_inexistente():
+    tree = ArvoreB(m=2)
+    # ainda não inserimos nada, logo remover 5 deve falhar
+    with pytest.raises(icontract.ViolationError):
+        tree.retira(5)
+
+def test_insere_e_retira_pre_ok():
+    tree = ArvoreB(m=2)
+    # inserir novo funciona
+    tree.insere(7)
+    assert tree.pesquisa(7) == 7
+    # retirar existente também
+    tree.retira(7)
+    assert tree.pesquisa(7) is None
+    
+########
