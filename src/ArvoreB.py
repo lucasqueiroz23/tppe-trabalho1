@@ -4,31 +4,49 @@ from .Pagina import Pagina
 
 
 @icontract.invariant(
-    lambda self: self._leaves_same_level(),
+    lambda self: self._folhas_mesmo_nivel(),
     "Nem todas as folhas estão no mesmo nível da árvore"
 )
 @icontract.invariant(
     lambda self: all(
         node.registros == sorted(node.registros)
-        for node in self._all_nodes() if not node.folha
+        for node in self._todos_nos() if not node.folha
     ),
     "Existe um nó interno com chaves fora de ordem crescente"
 )
 @icontract.invariant(
     lambda self: all(
         node.registros == sorted(node.registros)
-        for node in self._all_nodes() if node.folha
+        for node in self._todos_nos() if node.folha
     ),
     "Existe uma folha com valores fora de ordem crescente"
 )
 class ArvoreB:
     def __init__(self, m: int):
+        """
+        Inicializa uma nova Árvore B.
+
+        Args:
+            m (int): Grau mínimo da árvore (t), define limites de chaves por página.
+
+        Attributes:
+            raiz (Optional[Pagina]): Página raiz da árvore.
+            t (int): Grau mínimo.
+            min_chaves (int): Número mínimo de chaves (t - 1).
+            max_chaves (int): Número máximo de chaves (2*t - 1).
+        """
         self.raiz: Optional[Pagina] = None
         self.t: int = m
         self.min_chaves: int = m - 1
         self.max_chaves: int = 2 * m - 1
 
-    def _height(self) -> int:
+    def _altura_interna(self) -> int:
+        """
+        Calcula recursivamente a altura da árvore.
+
+        Returns:
+            int: Altura total (níveis) da árvore.
+        """
         def _h(node: Optional[Pagina]) -> int:
             if node is None:
                 return 0
@@ -37,290 +55,393 @@ class ArvoreB:
             return 1 + _h(node.paginas[0])
         return _h(self.raiz)
 
-    def _all_nodes(self) -> List[Pagina]:
-        nodes: List[Pagina] = []
-        def _collect(node: Optional[Pagina]) -> None:
+    def _todos_nos(self) -> List[Pagina]:
+        """
+        Coleta todas as páginas da árvore em pré-ordem.
+
+        Returns:
+            List[Pagina]: Lista de todas as páginas.
+        """
+        resultado: List[Pagina] = []
+        def _coletar(node: Optional[Pagina]) -> None:
             if node is None:
                 return
-            nodes.append(node)
+            resultado.append(node)
             if not node.folha:
-                for c in node.paginas[: node.qtdRegistros + 1]:
-                    _collect(c)
-        _collect(self.raiz)
-        return nodes
+                for filho in node.paginas[: node.qtdRegistros + 1]:
+                    _coletar(filho)
+        _coletar(self.raiz)
+        return resultado
 
-    def _leaves_same_level(self) -> bool:
+    def _folhas_mesmo_nivel(self) -> bool:
+        """
+        Verifica se todas as folhas estão no mesmo nível de profundidade.
+
+        Returns:
+            bool: True se todas as folhas têm a mesma profundidade.
+        """
         if self.raiz is None:
             return True
-        levels: List[int] = []
-        def _traverse(node: Pagina, depth: int) -> None:
+        niveis: List[int] = []
+        def _percorrer(node: Pagina, profundidade: int) -> None:
             if node.folha:
-                levels.append(depth)
+                niveis.append(profundidade)
             else:
-                for c in node.paginas[: node.qtdRegistros + 1]:
-                    if c:
-                        _traverse(c, depth + 1)
-        _traverse(self.raiz, 1)
-        return len(set(levels)) == 1
+                for filho in node.paginas[: node.qtdRegistros + 1]:
+                    if filho:
+                        _percorrer(filho, profundidade + 1)
+        _percorrer(self.raiz, 1)
+        return len(set(niveis)) == 1
 
-    def _bounds_ok(self) -> bool:
+    def _limites_chaves_ok(self) -> bool:
         """
-        Retorna True se:
-          - raiz: 1 <= qtdRegistros <= max_chaves
-          - nós não-raiz: min_chaves <= qtdRegistros <= max_chaves
+        Verifica se cada página respeita os limites de chaves:
+
+          - Raiz: 1 <= qtdRegistros <= max_chaves
+          - Demais: min_chaves <= qtdRegistros <= max_chaves
+
+        Returns:
+            bool: True se todos estiverem dentro dos limites.
         """
-        for node in self._all_nodes():
-            low, high = ((1, self.max_chaves)
-                         if node is self.raiz
-                         else (self.min_chaves, self.max_chaves))
-            if not (low <= node.qtdRegistros <= high):
+        for no in self._todos_nos():
+            minimo, maximo = ((1, self.max_chaves) if no is self.raiz
+                              else (self.min_chaves, self.max_chaves))
+            if not (minimo <= no.qtdRegistros <= maximo):
                 return False
         return True
 
-    def _children_bounds_ok(self) -> bool:
+    def _limites_filhos_ok(self) -> bool:
         """
-        Retorna True se, para cada nó interno (não-folha):
-        - raiz: 2 <= numFilhos <= 2*t
-        - nós internos não-raiz: t <= numFilhos <= 2*t
-        Verifica também que os primeiros (qtdRegistros+1) filhos são não nulos.
+        Verifica se cada página interna tem número de filhos não-nulos dentro dos limites:
+
+          - Raiz: 2 <= filhos <= 2*t
+          - Demais internos: t <= filhos <= 2*t
+
+        Retorna:
+            bool: True se todos os internos satisfazem a condição.
         """
-        for node in self._all_nodes():
-            if not node.folha:
-                # Conta apenas filhos não nulos nos primeiros qtdRegistros+1
-                num_filhos_nao_nulos = sum(
-                    1 for i in range(node.qtdRegistros + 1) 
-                    if node.paginas[i] is not None
+        for no in self._todos_nos():
+            if not no.folha:
+                contagem = sum(
+                    1 for i in range(no.qtdRegistros + 1)
+                    if no.paginas[i] is not None
                 )
-                num_filhos = num_filhos_nao_nulos
-                
-                low, high = ((2, 2 * self.t) if node is self.raiz
-                            else (self.t, 2 * self.t))
-                
-                if not (low <= num_filhos <= high):
+                minimo, maximo = ((2, 2 * self.t) if no is self.raiz
+                                  else (self.t, 2 * self.t))
+                if not (minimo <= contagem <= maximo):
                     return False
         return True
-    
+
     def altura(self) -> int:
-        return self._height()
+        """
+        Retorna a altura da árvore.
 
-    # ------------------ busca ------------------
+        Returns:
+            int: Altura atual.
+        """
+        return self._altura_interna()
 
-    def pesquisa(self, registro: int) -> Optional[int]:
-        return self._pesquisa(self.raiz, registro)
+    def buscar(self, chave: int) -> Optional[int]:
+        """
+        Busca uma chave na árvore B.
 
-    def _pesquisa(self, no: Optional[Pagina], registro: int) -> Optional[int]:
-        if no is None:
+        Args:
+            chave (int): Valor a ser buscado.
+
+        Returns:
+            Optional[int]: A chave se encontrada, ou None caso contrário.
+        """
+        return self._buscar_em_pagina(self.raiz, chave)
+
+    def _buscar_em_pagina(self, pagina: Optional[Pagina], chave: int) -> Optional[int]:
+        """
+        Busca recursivamente em uma página.
+
+        Args:
+            pagina (Optional[Pagina]): Página atual de busca.
+            chave (int): Valor buscado.
+
+        Returns:
+            Optional[int]: A chave se encontrada, ou None.
+        """
+        if pagina is None:
             return None
         i = 0
-        while i < no.qtdRegistros and registro > no.registros[i]:
+        while i < pagina.qtdRegistros and chave > pagina.registros[i]:
             i += 1
-        if i < no.qtdRegistros and registro == no.registros[i]:
-            return no.registros[i]
-        if no.folha:
+        if i < pagina.qtdRegistros and chave == pagina.registros[i]:
+            return pagina.registros[i]
+        if pagina.folha:
             return None
-        return self._pesquisa(no.paginas[i], registro)
-
-    # ------------------ inserção ------------------
+        return self._buscar_em_pagina(pagina.paginas[i], chave)
 
     @icontract.require(
-        lambda self, registro: self.pesquisa(registro) is None,
-        "Chave já existe na árvore, não é permitido inserir duplicatas"
+        lambda self, chave: self.buscar(chave) is None,
+        "Chave já existe na árvore; duplicatas não são permitidas"
     )
     @icontract.ensure(
-        lambda self: self._bounds_ok(),
-        "Após inserção, cada nó deve ter quantidade de chaves dentro dos limites definidos"
+        lambda self: self._limites_chaves_ok(),
+        "Após inserção, cada página deve respeitar limites de chaves"
     )
     @icontract.ensure(
-        lambda self: self._children_bounds_ok(),
-        "Após inserção, cada nó deve ter número de filhos dentro dos limites definidos"
+        lambda self: self._limites_filhos_ok(),
+        "Após inserção, cada página interna deve respeitar limites de filhos"
     )
-    @icontract.snapshot(lambda self: self._height(), name="old_height")
+    @icontract.snapshot(lambda self: self._altura_interna(), name="altura_antiga")
     @icontract.ensure(
-        lambda self, OLD: self._height() == OLD.old_height
-                        or self._height() == OLD.old_height + 1,
-        "Após divisão da raiz, a altura da árvore deve permanecer igual ou aumentar em no máximo uma unidade"
+        lambda self, OLD: self._altura_interna() == OLD.altura_antiga
+                        or self._altura_interna() == OLD.altura_antiga + 1,
+        "Após divisão da raiz, a altura deve permanecer igual ou aumentar em 1"
     )
-    def insere(self, registro: int) -> None:
+    def inserir(self, chave: int) -> None:
+        """
+        Insere uma chave na árvore B.
+
+        Args:
+            chave (int): Valor a inserir (único).
+
+        """
         if self.raiz is None:
-            # árvore vazia → nova raiz folha
             self.raiz = Pagina(self.t, True)
-            self.raiz.registros.append(registro)
+            self.raiz.registros.append(chave)
             self.raiz.qtdRegistros = 1
             return
 
-        # se raiz cheia, divide e aumenta altura
         if self.raiz.qtdRegistros == self.max_chaves:
-            nova_raiz = Pagina(self.t, False)
-            nova_raiz.paginas[0] = self.raiz
-            self._dividir_filho(nova_raiz, 0)
-            self.raiz = nova_raiz
+            nova = Pagina(self.t, False)
+            nova.paginas[0] = self.raiz
+            self._dividir_pagina(nova, 0)
+            self.raiz = nova
 
-        # insere no nó que não está cheio
-        self._inserir_nao_cheio(self.raiz, registro)
+        self._inserir_em_pagina_nao_cheia(self.raiz, chave)
 
-    def _inserir_nao_cheio(self, no: Pagina, registro: int) -> None:
-        i = no.qtdRegistros - 1
-        if no.folha:
-            # insere na folha em posição ordenada
-            no.registros.append(0)
-            while i >= 0 and registro < no.registros[i]:
-                no.registros[i + 1] = no.registros[i]
+    def _inserir_em_pagina_nao_cheia(self, pagina: Pagina, chave: int) -> None:
+        """
+        Insere em página que não está cheia.
+
+        Args:
+            pagina (Pagina): Página alvo.
+            chave (int): Valor a inserir.
+        """
+        i = pagina.qtdRegistros - 1
+        if pagina.folha:
+            pagina.registros.append(0)
+            while i >= 0 and chave < pagina.registros[i]:
+                pagina.registros[i + 1] = pagina.registros[i]
                 i -= 1
-            no.registros[i + 1] = registro
-            no.qtdRegistros += 1
+            pagina.registros[i + 1] = chave
+            pagina.qtdRegistros += 1
             return
 
-        # desce para o filho correto
-        while i >= 0 and registro < no.registros[i]:
+        while i >= 0 and chave < pagina.registros[i]:
             i -= 1
         i += 1
-        filho = no.paginas[i]
+        filho = pagina.paginas[i]
 
-        # se o filho estiver cheio, tenta empréstimo ou divisão
         if filho.qtdRegistros == self.max_chaves:
-            if i > 0 and no.paginas[i - 1].qtdRegistros < self.max_chaves:
-                self._emprestar_anterior(no, i)
-            elif i < no.qtdRegistros and no.paginas[i + 1].qtdRegistros < self.max_chaves:
-                self._emprestar_posterior(no, i)
+            if i > 0 and pagina.paginas[i - 1].qtdRegistros < self.max_chaves:
+                self._emprestar_de_anterior(pagina, i)
+            elif i < pagina.qtdRegistros and pagina.paginas[i + 1].qtdRegistros < self.max_chaves:
+                self._emprestar_de_posterior(pagina, i)
             else:
-                self._dividir_filho(no, i)
-                if registro > no.registros[i]:
+                self._dividir_pagina(pagina, i)
+                if chave > pagina.registros[i]:
                     i += 1
-            filho = no.paginas[i]
+            filho = pagina.paginas[i]
 
-        # recursão
-        self._inserir_nao_cheio(filho, registro)
+        self._inserir_em_pagina_nao_cheia(filho, chave)
 
-    def _dividir_filho(self, pai: Pagina, index: int) -> None:
-        filho = pai.paginas[index]
-        novo_filho = Pagina(self.t, filho.folha)
+    def _dividir_pagina(self, pai: Pagina, indice: int) -> None:
+        """
+        Divide uma página cheia e promove chave do meio.
+
+        Args:
+            pai (Pagina): Página pai.
+            indice (int): Índice da página a dividir.
+        """
+        filho = pai.paginas[indice]
+        novo = Pagina(self.t, filho.folha)
         meio = self.max_chaves // 2
         chave_meio = filho.registros[meio]
 
-        # divide registros
-        novo_filho.registros = filho.registros[meio + 1:]
-        novo_filho.qtdRegistros = len(novo_filho.registros)
+        novo.registros = filho.registros[meio + 1:]
+        novo.qtdRegistros = len(novo.registros)
         filho.registros = filho.registros[:meio]
         filho.qtdRegistros = meio
 
-        # se for interno, divide também os ponteiros
         if not filho.folha:
-            novo_filho.paginas = filho.paginas[meio + 1:]
+            novo.paginas = filho.paginas[meio + 1:]
             filho.paginas = filho.paginas[:meio + 1]
 
-        # insere chave do meio no pai
-        pai.registros.insert(index, chave_meio)
+        pai.registros.insert(indice, chave_meio)
         pai.qtdRegistros += 1
-        pai.paginas.insert(index + 1, novo_filho)
-        # mantêm tamanho máximo de lista de filhos
+        pai.paginas.insert(indice + 1, novo)
         pai.paginas = pai.paginas[:2 * self.t]
 
-    # ------------------ remoção ------------------
-
     @icontract.require(
-        lambda self, registro: self.pesquisa(registro) is not None,
-        "A chave a ser removida não existe na árvore"
+        lambda self, chave: self.buscar(chave) is not None,
+        "Chave não existe na árvore"
     )
     @icontract.ensure(
-        lambda self: self._bounds_ok(),
-        "Após remoção, cada nó deve ter quantidade de chaves dentro dos limites definidos"
+        lambda self: self._limites_chaves_ok(),
+        "Após remoção, cada página deve respeitar limites de chaves"
     )
     @icontract.ensure(
-        lambda self: self._children_bounds_ok(),
-        "Após remoção, cada nó deve ter número de filhos dentro dos limites definidos"
+        lambda self: self._limites_filhos_ok(),
+        "Após remoção, cada página interna deve respeitar limites de filhos"
     )
-    @icontract.snapshot(lambda self: self._height(), name="old_height")
+    @icontract.snapshot(lambda self: self._altura_interna(), name="altura_antiga")
     @icontract.ensure(
-        lambda self, OLD: self._height() == OLD.old_height
-                        or self._height() == OLD.old_height - 1,
-        "Após fusão da raiz, a altura da árvore deve permanecer igual ou diminuir em no máximo uma unidade"
+        lambda self, OLD: self._altura_interna() == OLD.altura_antiga
+                        or self._altura_interna() == OLD.altura_antiga - 1,
+        "Após fusão da raiz, a altura deve permanecer igual ou diminuir em 1"
     )
-    def retira(self, registro: int) -> None:
-        # executa a remoção
-        self._retirar(self.raiz, registro)
+    def remover(self, chave: int) -> None:
+        """
+        Remove uma chave da árvore B.
 
-        # ajusta raiz caso tenha ficado sem chaves
+        Args:
+            chave (int): Valor a remover.
+        """
+        if self.raiz is None:
+            return
+        self._remover_em_pagina(self.raiz, chave)
         if self.raiz.qtdRegistros == 0:
             if self.raiz.folha:
-                # árvore fica vazia
                 self.raiz = None
             else:
-                # desce a altura: primeiro filho vira nova raiz
                 self.raiz = self.raiz.paginas[0]
 
-    def _retirar(self, no: Pagina, registro: int) -> bool:
+    def _remover_em_pagina(self, pagina: Pagina, chave: int) -> bool:
+        """
+        Remove recursivamente em uma página.
+
+        Args:
+            pagina (Pagina): Página atual.
+            chave (int): Valor a remover.
+
+        Returns:
+            bool: True se ficar abaixo do mínimo de chaves.
+        """
         idx = 0
-        while idx < no.qtdRegistros and registro > no.registros[idx]:
+        while idx < pagina.qtdRegistros and chave > pagina.registros[idx]:
             idx += 1
 
-        # se encontrado no nó
-        if idx < no.qtdRegistros and registro == no.registros[idx]:
-            if no.folha:
-                # remoção simples na folha
-                del no.registros[idx]
-                no.qtdRegistros -= 1
-                return no.qtdRegistros < self.min_chaves
-            # remoção em nó interno
-            return self._remover_chave_nao_folha(no, idx)
+        if idx < pagina.qtdRegistros and chave == pagina.registros[idx]:
+            if pagina.folha:
+                del pagina.registros[idx]
+                pagina.qtdRegistros -= 1
+                return pagina.qtdRegistros < self.min_chaves
+            return self._remover_chave_em_pagina_interna(pagina, idx)
 
-        # se folha e não achou, nada a fazer
-        if no.folha:
+        if pagina.folha:
             return False
 
-        # caso geral: vai para o filho adequado
-        return self._processar_filho(no, idx, registro)
+        return self._processar_remocao_em_filho(pagina, idx, chave)
 
-    def _remover_chave_nao_folha(self, no: Pagina, idx: int) -> bool:
-        chave = no.registros[idx]
-        # se o predecessor cabe, troca e remove recursivamente
-        if no.paginas[idx].qtdRegistros > self.min_chaves:
-            pred = self._obter_predecessor(no, idx)
-            no.registros[idx] = pred
-            return self._retirar(no.paginas[idx], pred)
+    def _remover_chave_em_pagina_interna(self, pagina: Pagina, idx: int) -> bool:
+        """
+        Remove chave de página interna, usando predecessores/sucessores ou fusão.
 
-        # se o sucessor cabe, idem
-        if no.paginas[idx + 1].qtdRegistros > self.min_chaves:
-            succ = self._obter_sucessor(no, idx)
-            no.registros[idx] = succ
-            return self._retirar(no.paginas[idx + 1], succ)
+        Args:
+            pagina (Pagina): Página interna.
+            idx (int): Índice da chave.
 
-        # caso de fusão
-        self._fundir(no, idx)
-        return self._retirar(no.paginas[idx], chave)
+        Returns:
+            bool: True se abaixo do mínimo após operar.
+        """
+        chave = pagina.registros[idx]
+        if pagina.paginas[idx].qtdRegistros > self.min_chaves:
+            pred = self._obter_predecessor(pagina, idx)
+            pagina.registros[idx] = pred
+            return self._remover_em_pagina(pagina.paginas[idx], pred)
 
-    def _obter_predecessor(self, no: Pagina, idx: int) -> int:
-        atual = no.paginas[idx]
+        if pagina.paginas[idx + 1].qtdRegistros > self.min_chaves:
+            succ = self._obter_sucessor(pagina, idx)
+            pagina.registros[idx] = succ
+            return self._remover_em_pagina(pagina.paginas[idx + 1], succ)
+
+        self._fundir_paginas(pagina, idx)
+        return self._remover_em_pagina(pagina.paginas[idx], chave)
+
+    def _obter_predecessor(self, pagina: Pagina, idx: int) -> int:
+        """
+        Obtém predecessor (maior chave à esquerda).
+
+        Args:
+            pagina (Pagina): Página interna.
+            idx (int): Índice da chave.
+
+        Returns:
+            int: Valor do predecessor.
+        """
+        atual = pagina.paginas[idx]
         while not atual.folha:
             atual = atual.paginas[atual.qtdRegistros]
         return atual.registros[-1]
 
-    def _obter_sucessor(self, no: Pagina, idx: int) -> int:
-        atual = no.paginas[idx + 1]
+    def _obter_sucessor(self, pagina: Pagina, idx: int) -> int:
+        """
+        Obtém sucessor (menor chave à direita).
+
+        Args:
+            pagina (Pagina): Página interna.
+            idx (int): Índice da chave.
+
+        Returns:
+            int: Valor do sucessor.
+        """
+        atual = pagina.paginas[idx + 1]
         while not atual.folha:
             atual = atual.paginas[0]
         return atual.registros[0]
 
-    def _processar_filho(self, no: Pagina, idx: int, registro: int) -> bool:
-        flag = (idx == no.qtdRegistros)
-        filho = no.paginas[idx]
-        if filho.qtdRegistros == self.min_chaves:
-            self._preencher_filho(no, idx)
-        if flag and idx > no.qtdRegistros:
-            return self._retirar(no.paginas[idx - 1], registro)
-        return self._retirar(no.paginas[idx], registro)
+    def _processar_remocao_em_filho(self, pai: Pagina, idx: int, chave: int) -> bool:
+        """
+        Desce para o filho adequado para remoção e ajusta se necessário.
 
-    def _preencher_filho(self, pai: Pagina, idx: int) -> None:
+        Args:
+            pai (Pagina): Página pai.
+            idx (int): Índice do filho.
+            chave (int): Valor a remover.
+
+        Returns:
+            bool: True se o filho ficou abaixo do mínimo.
+        """
+        vai_direita = (idx == pai.qtdRegistros)
+        filho = pai.paginas[idx]
+        if filho.qtdRegistros == self.min_chaves:
+            self._ajustar_filho(pai, idx)
+        if vai_direita and idx > pai.qtdRegistros:
+            return self._remover_em_pagina(pai.paginas[idx - 1], chave)
+        return self._remover_em_pagina(pai.paginas[idx], chave)
+
+    def _ajustar_filho(self, pai: Pagina, idx: int) -> None:
+        """
+        Garante que o filho tenha chaves suficientes, fazendo empréstimo ou fusão.
+
+        Args:
+            pai (Pagina): Página pai.
+            idx (int): Índice do filho a ajustar.
+        """
         if idx > 0 and pai.paginas[idx - 1].qtdRegistros > self.min_chaves:
-            self._emprestar_anterior(pai, idx)
+            self._emprestar_de_anterior(pai, idx)
         elif idx < pai.qtdRegistros and pai.paginas[idx + 1].qtdRegistros > self.min_chaves:
-            self._emprestar_posterior(pai, idx)
+            self._emprestar_de_posterior(pai, idx)
         else:
             if idx < pai.qtdRegistros:
-                self._fundir(pai, idx)
+                self._fundir_paginas(pai, idx)
             else:
-                self._fundir(pai, idx - 1)
+                self._fundir_paginas(pai, idx - 1)
 
-    def _emprestar_anterior(self, pai: Pagina, idx: int) -> None:
+    def _emprestar_de_anterior(self, pai: Pagina, idx: int) -> None:
+        """
+        Empresta uma chave do irmão anterior para o filho.
+
+        Args:
+            pai (Pagina): Página pai.
+            idx (int): Índice do filho receptor.
+        """
         filho = pai.paginas[idx]
         irmao = pai.paginas[idx - 1]
         filho.registros.insert(0, pai.registros[idx - 1])
@@ -330,7 +451,14 @@ class ArvoreB:
         pai.registros[idx - 1] = irmao.registros.pop()
         irmao.qtdRegistros -= 1
 
-    def _emprestar_posterior(self, pai: Pagina, idx: int) -> None:
+    def _emprestar_de_posterior(self, pai: Pagina, idx: int) -> None:
+        """
+        Empresta uma chave do irmão posterior para o filho.
+
+        Args:
+            pai (Pagina): Página pai.
+            idx (int): Índice do filho receptor.
+        """
         filho = pai.paginas[idx]
         irmao = pai.paginas[idx + 1]
         filho.registros.append(pai.registros[idx])
@@ -340,17 +468,21 @@ class ArvoreB:
         pai.registros[idx] = irmao.registros.pop(0)
         irmao.qtdRegistros -= 1
 
-    def _fundir(self, pai: Pagina, idx: int) -> None:
+    def _fundir_paginas(self, pai: Pagina, idx: int) -> None:
+        """
+        Fundir uma página com seu irmão e mover a chave do pai.
+
+        Args:
+            pai (Pagina): Página pai.
+            idx (int): Índice da página à esquerda da fusão.
+        """
         filho = pai.paginas[idx]
         irmao = pai.paginas[idx + 1]
-        # traz a chave do pai
         filho.registros.append(pai.registros.pop(idx))
         filho.qtdRegistros += 1
-        # concatena registros e filhos do irmão
         filho.registros.extend(irmao.registros)
         filho.qtdRegistros += irmao.qtdRegistros
         if not filho.folha:
             filho.paginas.extend(irmao.paginas)
-        # remove ponteiro e ajusta contagem no pai
         pai.paginas.pop(idx + 1)
         pai.qtdRegistros -= 1
