@@ -1,10 +1,13 @@
 UnB - Universidade de Brasilia
+
 FCTE - Faculdade de Ciência e Tecnologia em Engenharias
+
 FGA0242 - Técnicas de Programação para Plataformas Emergentes
+
 Prof. André Lanna
 
 # Trabalho prático 1
---
+
 ## O algoritmo Árvore-B
 
 | Nome | Matrícula|
