@@ -1,10 +1,9 @@
-# test_teste.py
-
-import pytest
-import icontract
 from src.ArvoreB import ArvoreB
-from src.Pagina import Pagina
 from typing import List, Optional
+import pytest
+from src.Pagina import Pagina
+import icontract
+
 
 def make_page(t: int,
               is_leaf: bool,
@@ -28,128 +27,6 @@ def make_page(t: int,
     if children is not None:
         page.paginas = list(children)
     return page
-
-def test_invariante_sucesso_em_arvore_balanceada():
-    """
-    Verifica que em uma árvore balanceada:
-    - buscar chave existente retorna o valor.
-    - buscar chave inexistente retorna None.
-    """
-    tree = ArvoreB(m=2)
-    for chave in [10, 20, 5, 15, 25, 2, 8]:
-        tree.inserir(chave)
-    assert tree.buscar(15) == 15
-    assert tree.buscar(99) is None
-
-def test_invariante_falha_quando_folhas_em_niveis_diferentes():
-    """
-    Verifica que ao montar manualmente folhas em níveis distintos,
-    a busca dispara ViolationError por invariante de nível das folhas.
-    """
-    tree = ArvoreB(m=2)
-    tree.raiz = Pagina(t=2, folha=False)
-    tree.raiz.qtdRegistros = 1
-    tree.raiz.registros = [50]
-
-    left = Pagina(t=2, folha=True)
-    left.registros = [10]
-    left.qtdRegistros = 1
-    tree.raiz.paginas[0] = left
-
-    mid = Pagina(t=2, folha=False)
-    mid.qtdRegistros = 0
-    deep_leaf = Pagina(t=2, folha=True)
-    deep_leaf.registros = [60]
-    deep_leaf.qtdRegistros = 1
-    mid.paginas[0] = deep_leaf
-    tree.raiz.paginas[1] = mid
-
-    with pytest.raises(icontract.ViolationError):
-        tree.buscar(60)
-
-def test_interna_desordenada_dispara_violacao():
-    """
-    Verifica que uma raiz interna com registros fora de ordem
-    dispara ViolationError ao buscar.
-    """
-    tree = ArvoreB(m=2)
-    tree.raiz = Pagina(t=2, folha=False)
-    tree.raiz.registros = [30, 10]
-    tree.raiz.qtdRegistros = 2
-    tree.raiz.paginas[0] = Pagina(t=2, folha=True)
-    tree.raiz.paginas[1] = Pagina(t=2, folha=True)
-    tree.raiz.paginas[2] = Pagina(t=2, folha=True)
-
-    with pytest.raises(icontract.ViolationError):
-        tree.buscar(10)
-
-def test_folha_desordenada_dispara_violacao():
-    """
-    Verifica que uma folha com registros fora de ordem
-    dispara ViolationError ao inserir nova chave.
-    """
-    tree = ArvoreB(m=2)
-    tree.raiz = Pagina(t=2, folha=True)
-    tree.raiz.registros = [5, 2, 8]
-    tree.raiz.qtdRegistros = 3
-
-    with pytest.raises(icontract.ViolationError):
-        tree.inserir(9)
-
-def test_interna_em_ordem_nao_dispara():
-    """
-    Verifica que uma raiz interna ordenada não dispara erro
-    e busca retorna None para chave ausente.
-    """
-    tree = ArvoreB(m=2)
-    tree.raiz = Pagina(t=2, folha=False)
-    tree.raiz.registros = [10, 20]
-    tree.raiz.qtdRegistros = 2
-    tree.raiz.paginas[0] = Pagina(t=2, folha=True)
-    tree.raiz.paginas[1] = Pagina(t=2, folha=True)
-    tree.raiz.paginas[2] = Pagina(t=2, folha=True)
-
-    assert tree.buscar(15) is None
-
-def test_folha_em_ordem_nao_dispara():
-    """
-    Verifica que inserir em folha ordenada mantém ordem
-    e busca retorna valor inserido.
-    """
-    tree = ArvoreB(m=2)
-    tree.raiz = Pagina(t=2, folha=True)
-    tree.raiz.registros = [1, 2, 3]
-    tree.raiz.qtdRegistros = 3
-
-    tree.inserir(4)
-    assert tree.buscar(4) == 4
-
-def test_inserir_pre_falha_com_duplicata():
-    """
-    Verifica que inserir chave duplicada dispara ViolationError.
-    """
-    tree = ArvoreB(m=2)
-    tree.inserir(10)
-    with pytest.raises(icontract.ViolationError):
-        tree.inserir(10)
-
-def test_remover_pre_falha_com_inexistente():
-    """
-    Verifica que remover chave inexistente dispara ViolationError.
-    """
-    tree = ArvoreB(m=2)
-    with pytest.raises(icontract.ViolationError):
-        tree.remover(5)
-
-def test_inserir_e_remover_pre_ok():
-    """
-    Verifica inserção e remoção de chave existente funcionam corretamente.
-    """
-    tree = ArvoreB(m=2)
-    tree.inserir(7)
-    assert tree.buscar(7) == 7
-    tree.remover(7)
-    assert tree.buscar(7) is None
 
 def test_limites_chaves_ok_raiz_valida():
     """
@@ -330,3 +207,98 @@ def test_altura_nao_muda_quando_raiz_nao_funde():
     tree.remover(25)
     assert tree.altura() == altura_antes
     
+def test_pos_condicoes_altura():
+    """
+    Verifica a pós-condição de variação de altura:
+    - altura aumenta em 1 após divisão da raiz,
+    - altura diminui em 1 após fusão da raiz,
+    - altura permanece inalterada quando não há divisão ou fusão.
+    """
+    tree = ArvoreB(m=2)
+    for key in [10, 20, 5]:
+        tree.inserir(key)
+    altura_antes = tree.altura()
+    tree.inserir(15)
+    assert tree.altura() == altura_antes + 1
+
+    folha_esq = make_page(t=2, is_leaf=True, keys=[5])
+    folha_dir = make_page(t=2, is_leaf=True, keys=[15])
+    raiz = make_page(t=2, is_leaf=False, keys=[10], children=[folha_esq, folha_dir, None])
+    raiz.qtdRegistros = 1
+    tree.raiz = raiz
+    altura_antes = tree.altura()
+    tree.remover(10)
+    assert tree.altura() == altura_antes - 1
+
+    tree = ArvoreB(m=2)
+    tree.inserir(10)
+    altura_antes = tree.altura()
+    tree.inserir(20)
+    assert tree.altura() == altura_antes
+
+    tree.remover(20)
+    assert tree.altura() == altura_antes
+
+    tree = ArvoreB(m=2)
+    for key in [10, 20, 5, 15, 25]:
+        tree.inserir(key)
+    altura_antes = tree.altura()
+    tree.remover(25)
+    assert tree.altura() == altura_antes
+
+def test_violation_num_keys(monkeypatch):
+    """
+    Pós-condição «número de chaves dentro dos limites»:
+    patchamos _inserir_em_pagina_nao_cheia para nada, mantendo um nó
+    com 4 chaves (max=3 para t=2), de modo que após insere() _bounds_ok() falhe.
+    """
+    tree = ArvoreB(m=2)
+    tree.raiz = make_page(t=2, is_leaf=True, keys=[1, 2, 3, 4])
+
+    monkeypatch.setattr(ArvoreB, '_inserir_em_pagina_nao_cheia',
+                        lambda self, pagina, chave: None)
+
+    with pytest.raises(icontract.ViolationError):
+        tree.inserir(5)
+
+
+def test_violation_num_children(monkeypatch):
+    """
+    Pós-condição «número de filhos dentro dos limites»:
+    patchamos _inserir_em_pagina_nao_cheia para nada, deixando
+    a raiz com apenas 1 filho não-nulo (menor que 2), de modo que
+    após insere() _children_bounds_ok() falhe.
+    """
+    tree = ArvoreB(m=2)
+    child = make_page(t=2, is_leaf=True, keys=[5])
+    tree.raiz = make_page(t=2, is_leaf=False, keys=[10], children=[child, None])
+
+    monkeypatch.setattr(ArvoreB, '_inserir_em_pagina_nao_cheia',
+                        lambda self, pagina, chave: None)
+
+    with pytest.raises(icontract.ViolationError):
+        tree.inserir(15)
+
+
+def test_violation_height_change(monkeypatch):
+    """
+    Pós-condição «variação de altura ≤1»:
+    monkeypatch em _altura_interna para simular salto >1 após insere().
+    """
+    tree = ArvoreB(m=2)
+    for key in [10, 20, 5]:
+        tree.inserir(key)
+
+    real_altura = ArvoreB._altura_interna
+    calls = {'count': 0}
+
+    def fake_altura(self):
+        calls['count'] += 1
+        if calls['count'] == 1:
+            return real_altura(self)
+        return real_altura(self) + 3
+
+    monkeypatch.setattr(ArvoreB, '_altura_interna', fake_altura)
+
+    with pytest.raises(icontract.ViolationError):
+        tree.inserir(15)
