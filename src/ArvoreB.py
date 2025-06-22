@@ -1,263 +1,179 @@
 from Pagina import Pagina
 
-
 class ArvoreB:
-
-    raiz: Pagina
-    numeroMinimoDeregistros: int
-    numeroMaximoDeregistros: int
-
     def __init__(self, m: int):
         self.raiz = None
-        self.numeroMinimoDeregistros = m
-        self.numeroMaximoDeregistros = 2 * m
+        self.t = m
+        self.min_chaves = m - 1
+        self.max_chaves = 2 * m - 1
 
-    def pesquisa(self, registro: int) -> int:
-        return self._pesquisa(registro, self.raiz)
+    def pesquisa(self, registro: int):
+        return self._pesquisa(self.raiz, registro)
+
+    def _pesquisa(self, no: Pagina, registro: int):
+        if no is None:
+            return None
+        i = 0
+        while i < no.qtdRegistros and registro > no.registros[i]:
+            i += 1
+        if i < no.qtdRegistros and registro == no.registros[i]:
+            return no.registros[i]
+        if no.folha:
+            return None
+        return self._pesquisa(no.paginas[i], registro)
 
     def insere(self, registro: int) -> None:
-        regRetorno = [None]
-        cresceu = [None]
-        apRetorno = self._insere(registro, self.raiz, regRetorno, cresceu)
-        if cresceu[0]:
-            apTemp = Pagina(self.numeroMaximoDeregistros)
-            apTemp.registros[0] = regRetorno[0]
-            apTemp.paginas[0] = self.raiz
-            apTemp.paginas[1] = apRetorno
-            self.raiz = apTemp
-            self.raiz.qtdRegistros += 1
-        else:
-            self.raiz = apRetorno
+        if self.pesquisa(registro) is not None:
+            return
+        if self.raiz is None:
+            self.raiz = Pagina(self.t, True)
+            self.raiz.registros.append(registro)
+            self.raiz.qtdRegistros = 1
+            return
+        if self.raiz.qtdRegistros == self.max_chaves:
+            nova_raiz = Pagina(self.t, False)
+            nova_raiz.paginas[0] = self.raiz
+            self._dividir_filho(nova_raiz, 0)
+            self.raiz = nova_raiz
+        self._inserir_nao_cheio(self.raiz, registro)
 
-    def _insere(self, registro: int, ap: Pagina, regRetorno: list[int], cresceu: list[bool]) -> Pagina:
-        apRetorno = None
-        if ap is None:
-            cresceu[0] = True
-            regRetorno[0] = registro
-        else:
-            i = 0
-            while i < ap.qtdRegistros - 1 and registro > ap.registros[i]:
-                i += 1
-            if registro == ap.registros[i]:
-                print("Erro: registro já existente")
-                cresceu[0] = False
+    def _inserir_nao_cheio(self, no: Pagina, registro: int):
+        i = no.qtdRegistros - 1
+        if no.folha:
+            no.registros.append(0)
+            while i >= 0 and registro < no.registros[i]:
+                no.registros[i + 1] = no.registros[i]
+                i -= 1
+            no.registros[i + 1] = registro
+            no.qtdRegistros += 1
+            return
+        while i >= 0 and registro < no.registros[i]:
+            i -= 1
+        i += 1
+        filho = no.paginas[i]
+        if filho.qtdRegistros == self.max_chaves:
+            if i > 0 and no.paginas[i - 1].qtdRegistros < self.max_chaves:
+                self._emprestar_anterior(no, i)
+            elif i < no.qtdRegistros and no.paginas[i + 1].qtdRegistros < self.max_chaves:
+                self._emprestar_posterior(no, i)
             else:
-                if registro > ap.registros[i]:
+                self._dividir_filho(no, i)
+                if registro > no.registros[i]:
                     i += 1
-                apRetorno = self._insere(
-                    registro, ap.paginas[i], regRetorno, cresceu)
-                if cresceu[0]:
-                    if ap.qtdRegistros < self.numeroMaximoDeregistros:
-                        # pagina tem espaço
-                        self.insereNaPagina(ap, regRetorno[0], apRetorno)
-                        cresceu[0] = False
-                        apRetorno = ap
-                    else:
-                        # overflow, pagina tem que ser dividida
-                        apTemp = Pagina(self.numeroMaximoDeregistros)
-                        apTemp.paginas[0] = None
-                        if i <= self.numeroMinimoDeregistros:
-                            self.insereNaPagina(
-                                apTemp, ap.registros[self.numeroMaximoDeregistros - 1], ap.paginas[self.numeroMaximoDeregistros])
-                            ap.qtdRegistros -= 1
-                            self.insereNaPagina(ap, regRetorno[0], apRetorno)
-                        j = self.numeroMinimoDeregistros + 1
-                        while j < self.numeroMaximoDeregistros:
-                            self.insereNaPagina(
-                                apTemp, ap.registros[j], ap.paginas[j+1])
-                            ap.paginas[j+1] = None
-                            j += 1
-                        ap.qtdRegistros = self.numeroMinimoDeregistros
-                        apTemp.paginas[0] = ap.paginas[self.numeroMinimoDeregistros + 1]
-                        regRetorno[0] = ap.registros[self.numeroMinimoDeregistros]
-                        apRetorno = apTemp
-        return apRetorno if cresceu[0] else ap
+            filho = no.paginas[i]
+        self._inserir_nao_cheio(filho, registro)
 
-    def insereNaPagina(self, ap: Pagina, reg: int, apDir: Pagina):
-        k = ap.qtdRegistros - 1
+    def _dividir_filho(self, pai: Pagina, index: int):
+        filho = pai.paginas[index]
+        novo_filho = Pagina(self.t, filho.folha)
+        meio = self.max_chaves // 2
+        chave_meio = filho.registros[meio]
+        novo_filho.registros = filho.registros[meio + 1:]
+        novo_filho.qtdRegistros = len(novo_filho.registros)
+        filho.registros = filho.registros[:meio]
+        filho.qtdRegistros = meio
+        if not filho.folha:
+            novo_filho.paginas = filho.paginas[meio + 1:]
+            filho.paginas = filho.paginas[:meio + 1]
+        pai.registros.insert(index, chave_meio)
+        pai.qtdRegistros += 1
+        pai.paginas.insert(index + 1, novo_filho)
+        pai.paginas = pai.paginas[:2 * self.t]
 
-        while k >= 0 and reg < ap.registros[k]:
-            ap.registros[k + 1] = ap.registros[k]
-            ap.paginas[k+2] = ap.paginas[k+1]
-            k -= 1
-        ap.registros[k + 1] = reg
-        ap.paginas[k + 2] = apDir
-        ap.qtdRegistros += 1
-
-    def retira(self, registro: int):
-        diminuiu = [None]
-        self.raiz = self._retira(registro, self.raiz, diminuiu)
-        if diminuiu[0] and self.raiz.qtdRegistros == 0:
+    def retira(self, registro: int) -> None:
+        if self.pesquisa(registro) is None:
+            return
+        self._retirar(self.raiz, registro)
+        if self.raiz.qtdRegistros == 0 and not self.raiz.folha:
             self.raiz = self.raiz.paginas[0]
 
-    def _retira(self, registro: int, ap: Pagina, diminuiu: list[bool]) -> Pagina:
-        if ap is None:
-            print("erro registro nao encontrado")
-            diminuiu[0] = False
+    def _retirar(self, no: Pagina, registro: int) -> bool:
+        idx = 0
+        while idx < no.qtdRegistros and registro > no.registros[idx]:
+            idx += 1
+        if idx < no.qtdRegistros and registro == no.registros[idx]:
+            if no.folha:
+                del no.registros[idx]
+                no.qtdRegistros -= 1
+                return no.qtdRegistros < self.min_chaves
+            return self._remover_chave_nao_folha(no, idx)
+        if no.folha:
+            return False
+        return self._processar_filho(no, idx, registro)
+
+    def _remover_chave_nao_folha(self, no: Pagina, idx: int):
+        chave = no.registros[idx]
+        if no.paginas[idx].qtdRegistros > self.min_chaves:
+            pred = self._obter_predecessor(no, idx)
+            no.registros[idx] = pred
+            return self._retirar(no.paginas[idx], pred)
+        if no.paginas[idx + 1].qtdRegistros > self.min_chaves:
+            succ = self._obter_sucessor(no, idx)
+            no.registros[idx] = succ
+            return self._retirar(no.paginas[idx + 1], succ)
+        self._fundir(no, idx)
+        return self._retirar(no.paginas[idx], chave)
+
+    def _obter_predecessor(self, no: Pagina, idx: int):
+        atual = no.paginas[idx]
+        while not atual.folha:
+            atual = atual.paginas[atual.qtdRegistros]
+        return atual.registros[-1]
+
+    def _obter_sucessor(self, no: Pagina, idx: int):
+        atual = no.paginas[idx + 1]
+        while not atual.folha:
+            atual = atual.paginas[0]
+        return atual.registros[0]
+
+    def _processar_filho(self, no: Pagina, idx: int, registro: int):
+        flag = (idx == no.qtdRegistros)
+        filho = no.paginas[idx]
+        if filho.qtdRegistros == self.min_chaves:
+            self._preencher_filho(no, idx)
+        if flag and idx > no.qtdRegistros:
+            return self._retirar(no.paginas[idx - 1], registro)
+        return self._retirar(no.paginas[idx], registro)
+
+    def _preencher_filho(self, pai: Pagina, idx: int):
+        if idx > 0 and pai.paginas[idx - 1].qtdRegistros > self.min_chaves:
+            self._emprestar_anterior(pai, idx)
+        elif idx < pai.qtdRegistros and pai.paginas[idx + 1].qtdRegistros > self.min_chaves:
+            self._emprestar_posterior(pai, idx)
         else:
-            ind = 0
-            while ind < ap.qtdRegistros - 1 and registro > ap.registros[ind]:
-                ind += 1
-            if registro == ap.registros[ind]:
-                # achou
-                if ap.paginas[ind] is None:
-                    # pagina folha
-                    ap.qtdRegistros -= 1
-                    diminuiu[0] = (ap.qtdRegistros <
-                                   self.numeroMinimoDeregistros)
-
-                    j = ind
-                    while j < ap.qtdRegistros:
-                        ap.registros[j] = ap.registros[j + 1]
-                        ap.paginas[j] = ap.paginas[j+1]
-                        j += 1
-
-                    ap.paginas[ap.qtdRegistros] = ap.paginas[ap.qtdRegistros + 1]
-                    ap.paginas[ap.qtdRegistros + 1] = None
-                else:
-                    diminuiu[0] = self.antecessor(ap, ind, ap.paginas[ind])
-                    if diminuiu[0]:
-                        diminuiu[0] = self.reconstitui(
-                            ap.paginas[ind], ap, ind)
-
+            if idx < pai.qtdRegistros:
+                self._fundir(pai, idx)
             else:
-                # nao achou
-                if registro > ap.registros[ind]:
-                    ind += 1
-                ap.paginas[ind] = self._retira(
-                    registro, ap.paginas[ind], diminuiu)
-                if diminuiu[0]:
-                    diminuiu[0] = self.reconstitui(ap.paginas[ind], ap, ind)
-        return ap
+                self._fundir(pai, idx - 1)
 
-    def antecessor(self, ap: Pagina, ind: int, apPai: Pagina) -> bool:
-        diminuiu = True
-        if apPai.paginas[apPai.qtdRegistros] is not None:
-            diminuiu = self.antecessor(
-                ap, ind, apPai.paginas[apPai.qtdRegistros])
-            if diminuiu:
-                diminuiu = self.reconstitui(
-                    apPai.paginas[apPai.qtdRegistros], apPai, apPai.qtdRegistros)
-        else:
-            ap.registros[ind] = apPai.registros[apPai.qtdRegistros - 1]
-            apPai.qtdRegistros -= 1
-            diminuiu = apPai.qtdRegistros < self.numeroMinimoDeregistros
-        return diminuiu
+    def _emprestar_anterior(self, pai: Pagina, idx: int):
+        filho = pai.paginas[idx]
+        irmao = pai.paginas[idx - 1]
+        filho.registros.insert(0, pai.registros[idx - 1])
+        filho.qtdRegistros += 1
+        if not filho.folha:
+            filho.paginas.insert(0, irmao.paginas.pop())
+        pai.registros[idx - 1] = irmao.registros.pop()
+        irmao.qtdRegistros -= 1
 
-    def reconstitui(self, apPag: Pagina, apPai: Pagina, posPai: int) -> bool:
-        diminuiu = True
-        if posPai < apPai.qtdRegistros:
-            aux = apPai.paginas[posPai + 1]
-            dispAux = (aux.qtdRegistros - self.numeroMinimoDeregistros + 1)//2
-            apPag.registros[apPag.qtdRegistros] = apPai.registros[posPai]
-            apPag.qtdRegistros += 1
-            apPag.paginas[apPag.qtdRegistros] = aux.paginas[0]
-            aux.paginas[0] = None
+    def _emprestar_posterior(self, pai: Pagina, idx: int):
+        filho = pai.paginas[idx]
+        irmao = pai.paginas[idx + 1]
+        filho.registros.append(pai.registros[idx])
+        filho.qtdRegistros += 1
+        if not filho.folha:
+            filho.paginas.append(irmao.paginas.pop(0))
+        pai.registros[idx] = irmao.registros.pop(0)
+        irmao.qtdRegistros -= 1
 
-            if dispAux > 0:
-                j = 0
-                while j < dispAux - 1:
-                    self.insereNaPagina(
-                        apPag, aux.registros[j], aux.paginas[j + 1])
-                    aux.paginas[j + 1] = None
-                    j += 1
-
-                apPai.registros[posPai] = aux.registros[dispAux - 1]
-                aux.qtdRegistros -= dispAux
-                j = 0
-                while j < aux.qtdRegistros:
-                    aux.registros[j] = aux.registros[j + dispAux]
-                    j += 1
-
-                j = 0
-                while j <= aux.qtdRegistros:
-                    aux.paginas[j] = aux.paginas[j + dispAux]
-                    j += 1
-
-                aux.paginas[aux.qtdRegistros + dispAux] = None
-                diminuiu = False
-            else:
-                j = 0
-                while j < self.numeroMinimoDeregistros:
-                    self.insereNaPagina(
-                        apPag, aux.registros[j], aux.paginas[j+1])
-                    aux.paginas[j + 1] = None
-                    j += 1
-                aux = apPai.paginas[posPai + 1] = None
-
-                j = posPai
-                while j < apPai.qtdRegistros - 1:
-                    apPai.registros[j] = apPai.registros[j + 1]
-                    apPai.paginas[j+1] = apPai.paginas[j+2]
-                    j += 1
-                apPai.paginas[apPai.qtdRegistros - 1] = None
-                apPai.qtdRegistros -= 1
-
-                diminuiu = apPai.qtdRegistros < self.numeroMinimoDeregistros
-        else:
-            aux = apPai.paginas[posPai - 1]
-            dispAux = (aux.qtdRegistros - self.numeroMinimoDeregistros + 1)//2
-
-            j = apPag.qtdRegistros - 1
-            while j >= 0:
-                apPag.registros[j+1] = apPag.registros[j]
-                j -= 1
-
-            apPag.registros[0] = apPai.registros[posPai - 1]
-
-            j = apPag.qtdRegistros
-            while j >= 0:
-                apPag.paginas[j + 1] = apPag.paginas[j]
-                j -= 1
-
-            apPag.qtdRegistros += 1
-
-            if dispAux > 0:
-                j = 0
-                while j < dispAux - 1:
-                    self.insereNaPagina(
-                        apPag, aux.registros[aux.qtdRegistros - j - 1], aux.paginas[aux.qtdRegistros - j])
-                    aux.paginas[aux.qtdRegistros - j] = None
-                    j += 1
-
-                apPag.paginas[0] = aux.paginas[aux.qtdRegistros - dispAux + 1]
-                aux.paginas[aux.qtdRegistros - dispAux + 1] = None
-                apPai.registros[posPai -
-                                1] = aux.registros[aux.qtdRegistros - dispAux]
-                aux.qtdRegistros = aux.qtdRegistros - dispAux
-                diminuiu = False
-            else:
-                j = 0
-                while j < self.numeroMinimoDeregistros:
-                    self.insereNaPagina(
-                        aux, apPag.registros[j], apPag.paginas[j+1])
-                    apPag.paginas[j+1] = None
-                    j += 1
-
-                apPag = None
-                apPai.paginas[apPai.qtdRegistros - 1] = None
-                apPai.qtdRegistros -= 1
-                diminuiu = apPai.qtdRegistros < self.numeroMinimoDeregistros
-
-        return diminuiu
-
-    def _pesquisa(self, registro: int, ap: Pagina) -> int:
-        if ap is None:
-            # nao encontrou o registro
-            return None
-
-        i = 0
-        while (i < ap.qtdRegistros - 1) and registro > ap.registros[i]:
-            # vai pro proximo registro
-            i += 1
-
-        if ap.registros[i] == registro:
-            # encontrou o registro
-            return ap.r[i]
-
-        if ap.registros[i] > registro:
-            # vai pra proxima pagina
-            return self._pesquisa(registro, ap.paginas[i])
-
-        # vai pra proxima pagina
-        return self._pesquisa(registro, ap.paginas[i + 1])
+    def _fundir(self, pai: Pagina, idx: int):
+        filho = pai.paginas[idx]
+        irmao = pai.paginas[idx + 1]
+        filho.registros.append(pai.registros.pop(idx))
+        filho.qtdRegistros += 1
+        filho.registros.extend(irmao.registros)
+        filho.qtdRegistros += irmao.qtdRegistros
+        if not filho.folha:
+            filho.paginas.extend(irmao.paginas)
+        pai.paginas.pop(idx + 1)
+        pai.qtdRegistros -= 1
