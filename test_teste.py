@@ -136,3 +136,147 @@ def test_insere_e_retira_pre_ok():
     assert tree.pesquisa(7) is None
     
 ########
+
+def test_bounds_ok_raiz_valida():
+    tree = ArvoreB(m=2)
+    tree.raiz = make_page(t=2, is_leaf=True, keys=[10])
+    assert tree._bounds_ok()  # 1 chave (dentro do limite [1, 3])
+
+def test_bounds_ok_raiz_invalida_abaixo():
+    tree = ArvoreB(m=2)
+    tree.raiz = make_page(t=2, is_leaf=True, keys=[])
+    assert not tree._bounds_ok()  # 0 chaves (abaixo do mínimo)
+
+def test_bounds_ok_raiz_invalida_acima():
+    tree = ArvoreB(m=2)
+    tree.raiz = make_page(t=2, is_leaf=True, keys=[1, 2, 3, 4])  # 4 chaves
+    assert not tree._bounds_ok()  # max=3, 4 > max
+
+def test_bounds_ok_no_interno_valido():
+    tree = ArvoreB(m=2)
+    child = make_page(t=2, is_leaf=True, keys=[5, 6])  # 2 chaves (min=1, max=3)
+    tree.raiz = make_page(t=2, is_leaf=False, keys=[10], children=[child, None])
+    assert tree._bounds_ok()
+
+def test_bounds_ok_no_interno_invalido():
+    tree = ArvoreB(m=2)
+    child = make_page(t=2, is_leaf=True, keys=[])  # 0 chaves (abaixo do min=1)
+    tree.raiz = make_page(t=2, is_leaf=False, keys=[10], children=[child, None])
+    assert not tree._bounds_ok()
+    
+def test_children_bounds_ok_raiz_valida():
+    tree = ArvoreB(m=2)
+    child1 = make_page(t=2, is_leaf=True, keys=[5])
+    child2 = make_page(t=2, is_leaf=True, keys=[15])
+    tree.raiz = make_page(t=2, is_leaf=False, keys=[10], children=[child1, child2, None])
+    assert tree._children_bounds_ok()
+
+def test_children_bounds_ok_raiz_invalida_abaixo():
+    tree = ArvoreB(m=2)
+    child = make_page(t=2, is_leaf=True, keys=[5])
+    tree.raiz = make_page(t=2, is_leaf=False, keys=[10], children=[child, None])
+    assert not tree._children_bounds_ok()
+
+def test_children_bounds_ok_raiz_invalida_acima():
+    tree = ArvoreB(m=2)
+    children = [make_page(t=2, is_leaf=True, keys=[i]) for i in range(5)]
+    tree.raiz = make_page(t=2, is_leaf=False, keys=[1,2,3,4], children=children)
+    assert not tree._children_bounds_ok()
+
+def test_children_bounds_ok_no_interno_valido():
+    tree = ArvoreB(m=2)
+    grandchild1 = make_page(t=2, is_leaf=True, keys=[3])
+    grandchild2 = make_page(t=2, is_leaf=True, keys=[7])
+    child = make_page(t=2, is_leaf=False, keys=[5], children=[grandchild1, grandchild2, None])
+    child2 = make_page(t=2, is_leaf=True, keys=[15])  # Segundo filho da raiz
+    tree.raiz = make_page(t=2, is_leaf=False, keys=[10], children=[child, child2, None])
+    assert tree._children_bounds_ok()
+
+def test_children_bounds_ok_no_interno_invalido():
+    tree = ArvoreB(m=2)
+    grandchild = make_page(t=2, is_leaf=True, keys=[3])
+    child = make_page(t=2, is_leaf=False, keys=[5], children=[grandchild, None])
+    child2 = make_page(t=2, is_leaf=True, keys=[15])  # Segundo filho da raiz
+    tree.raiz = make_page(t=2, is_leaf=False, keys=[10], children=[child, child2, None])
+    assert not tree._children_bounds_ok()
+
+def test_children_bounds_ok_filhos_nulos_disparam_violacao():
+    tree = ArvoreB(m=2)
+    valid_child = make_page(t=2, is_leaf=True, keys=[5])
+    tree.raiz = make_page(t=2, is_leaf=False, keys=[10], children=[valid_child, None])
+    assert not tree._children_bounds_ok()
+
+def test_children_bounds_ok_filhos_validos_nao_disparam():
+    tree = ArvoreB(m=2)
+    left = make_page(t=2, is_leaf=True, keys=[5])
+    right = make_page(t=2, is_leaf=True, keys=[15])
+    tree.raiz = make_page(t=2, is_leaf=False, keys=[10], children=[left, right, None])
+    assert tree._children_bounds_ok()
+    
+# test.py
+
+def test_altura_aumenta_em_1_ao_dividir_raiz():
+    tree = ArvoreB(m=2)
+    # Inserir até encher a raiz (3 chaves)
+    for key in [10, 20, 5]:
+        tree.insere(key)
+    altura_antes = tree.altura()
+    
+    # Inserção que causa divisão da raiz
+    tree.insere(15)
+    
+    # Altura deve aumentar em 1
+    assert tree.altura() == altura_antes + 1
+
+def test_altura_diminui_em_1_ao_fundir_raiz():
+    tree = ArvoreB(m=2)
+    # Construir manualmente uma árvore de altura 2 com raiz com apenas 1 chave
+    folha_esq = make_page(t=2, is_leaf=True, keys=[5])
+    folha_dir = make_page(t=2, is_leaf=True, keys=[15])
+    raiz = make_page(t=2, is_leaf=False, keys=[10], children=[folha_esq, folha_dir, None])
+    raiz.qtdRegistros = 1
+    tree.raiz = raiz
+
+    altura_antes = tree.altura()
+    
+    # Remoção que causa fusão da raiz
+    tree.retira(10)
+    
+    # Altura deve diminuir em 1
+    assert tree.altura() == altura_antes - 1
+
+def test_altura_nao_muda_em_insercao_sem_divisao():
+    tree = ArvoreB(m=2)
+    tree.insere(10)
+    altura_antes = tree.altura()
+    
+    # Inserção que não causa divisão
+    tree.insere(20)
+    
+    # Altura deve permanecer a mesma
+    assert tree.altura() == altura_antes
+
+def test_altura_nao_muda_em_remocao_sem_fusao():
+    tree = ArvoreB(m=2)
+    tree.insere(10)
+    tree.insere(20)
+    altura_antes = tree.altura()
+    
+    # Remoção que não causa fusão da raiz
+    tree.retira(20)
+    
+    # Altura deve permanecer a mesma
+    assert tree.altura() == altura_antes
+
+def test_altura_nao_muda_quando_raiz_nao_funde():
+    tree = ArvoreB(m=2)
+    # Árvore com raiz e 2 filhos
+    for key in [10, 20, 5, 15, 25]:
+        tree.insere(key)
+    altura_antes = tree.altura()
+    
+    # Remover chave que não causa fusão da raiz
+    tree.retira(25)
+    
+    # Altura deve permanecer a mesma
+    assert tree.altura() == altura_antes

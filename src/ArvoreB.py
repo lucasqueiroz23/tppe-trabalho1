@@ -81,17 +81,28 @@ class ArvoreB:
     def _children_bounds_ok(self) -> bool:
         """
         Retorna True se, para cada nó interno (não-folha):
-          - raiz: 2 <= numFilhos <= 2*t
-          - nós internos não-raiz: t <= numFilhos <= 2*t
+        - raiz: 2 <= numFilhos <= 2*t
+        - nós internos não-raiz: t <= numFilhos <= 2*t
+        Verifica também que os primeiros (qtdRegistros+1) filhos são não nulos.
         """
         for node in self._all_nodes():
             if not node.folha:
-                num_filhos = len(node.paginas[: node.qtdRegistros + 1])
+                # Conta apenas filhos não nulos nos primeiros qtdRegistros+1
+                num_filhos_nao_nulos = sum(
+                    1 for i in range(node.qtdRegistros + 1) 
+                    if node.paginas[i] is not None
+                )
+                num_filhos = num_filhos_nao_nulos
+                
                 low, high = ((2, 2 * self.t) if node is self.raiz
-                             else (self.t, 2 * self.t))
+                            else (self.t, 2 * self.t))
+                
                 if not (low <= num_filhos <= high):
                     return False
         return True
+    
+    def altura(self) -> int:
+        return self._height()
 
     # ------------------ busca ------------------
 
@@ -123,6 +134,12 @@ class ArvoreB:
     @icontract.ensure(
         lambda self: self._children_bounds_ok(),
         "Pós-condição: número de filhos em cada nó dentro dos limites (raiz: 2..2*t; internos: t..2*t)"
+    )
+    @icontract.snapshot(lambda self: self._height(), name="old_height")
+    @icontract.ensure(
+        lambda self, OLD: self.altura() == OLD.old_height or 
+                          self.altura() == OLD.old_height + 1,
+        "Para a raiz, após operação de divisão, nível da árvore aumenta em no máximo uma unidade"
     )
     def insere(self, registro: int) -> None:
         if self.raiz is None:
@@ -212,6 +229,12 @@ class ArvoreB:
     @icontract.ensure(
         lambda self: self._children_bounds_ok(),
         "Pós-condição: número de filhos em cada nó dentro dos limites (raiz: 2..2*t; internos: t..2*t)"
+    )
+    @icontract.snapshot(lambda self: self._height(), name="old_height")
+    @icontract.ensure(
+        lambda self, OLD: self._height() == OLD.old_height
+                         or self._height() == OLD.old_height - 1,
+        "Para a raiz, após operação de fusão, nível da árvore diminui em no máximo uma unidade"
     )
     def retira(self, registro: int) -> None:
         # executa a remoção
