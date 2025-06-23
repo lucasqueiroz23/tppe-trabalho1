@@ -42,7 +42,7 @@ make run
 make test
 ```
 
-### contratos implementados
+### Contratos implementados
 
 | Inv./ Pre- / Pos-cond. | Descricao | Status |
 |:---|:---|:--:|
