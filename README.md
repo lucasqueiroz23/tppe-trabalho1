@@ -58,5 +58,5 @@ make test
 ### Referências bibliográficas
 
    -  ZIVIANI, Nivio. Projeto de Algoritmos: com Implementações em Pascal e C – 3ª edição revista e ampliada. 3. ed. Porto Alegre: +A Educação - Cengage Learning Brasil, 2018. E-book. p.250. ISBN 9788522126590. Disponível em: https://integrada.minhabiblioteca.com.br/reader/books/9788522126590/.
-  -  ZIVIANI, Nívio. Projeto de algoritmos: com implementações em Java e C++. 3. ed. rev. e ampl. São Paulo: Pioneira Thomson Learning, 2004. Disponível em: https://integrada.minhabiblioteca.com.br/reader/books/9788522108213/pageid/0. Acesso em: 22 jun. 2025.:wq
+  -  ZIVIANI, Nívio. Projeto de algoritmos: com implementações em Java e C++. 3. ed. rev. e ampl. São Paulo: Pioneira Thomson Learning, 2004. Disponível em: https://integrada.minhabiblioteca.com.br/reader/books/9788522108213/pageid/0. Acesso em: 22 jun. 2025.
  
